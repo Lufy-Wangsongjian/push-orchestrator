@@ -1,0 +1,36 @@
+{
+  "tasks": [
+    {
+      "id": "personal-reminder",
+      "name": "Daily reminder",
+      "description": "Sample reminder",
+      "enabled": false,
+      "type": "reminder",
+      "provider": "reminder",
+      "severity": "low",
+      "cron": "0 9 * * *",
+      "channel": "telegram",
+      "target": "",
+      "metadata": { "body": "Good morning." }
+    },
+    {
+      "id": "personal-book",
+      "name": "Book pick",
+      "description": "Sample content task",
+      "enabled": false,
+      "type": "content",
+      "provider": "content",
+      "content_kind": "book",
+      "content_source_type": "script",
+      "dedupe_strategy": "hash_topic",
+      "render_strategy": "markdown",
+      "cron": "0 10 * * 1",
+      "channel": "telegram",
+      "target": "",
+      "archive_enabled": true,
+      "archive_category": "book",
+      "dedupe": { "mode": "hash_topic", "cooldown_days": 7 },
+      "source_config": { "title": "Book of the week", "body": "A book worth reading." }
+    }
+  ]
+}

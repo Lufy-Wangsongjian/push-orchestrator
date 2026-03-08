@@ -1,0 +1,20 @@
+# State & runtime
+state/push.db
+state/push.db-journal
+state/run_history_export/
+state/content_archive/
+*.lock
+*.lock.d/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~
+
+# Local overrides (optional)
+config/local.json
+*.local.json

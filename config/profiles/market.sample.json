@@ -1,0 +1,5 @@
+{
+  "profile": "market",
+  "description": "市场简报类任务示例",
+  "tasksFile": "../examples/tasks.market.example.json"
+}

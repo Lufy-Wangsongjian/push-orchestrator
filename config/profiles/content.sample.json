@@ -1,0 +1,5 @@
+{
+  "profile": "content",
+  "description": "内容推荐类任务示例（book/musical/coffee/ai_news 等）",
+  "tasksFile": "../examples/tasks.content.example.json"
+}

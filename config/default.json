@@ -1,0 +1,17 @@
+{
+  "timezone": "Asia/Shanghai",
+  "workspaceRoot": ".",
+  "stateDbPath": "./state/push.db",
+  "sendCommand": "openclaw message send",
+  "defaultChannel": "telegram",
+  "defaultTarget": "",
+  "retryPolicy": {
+    "maxAttempts": 3,
+    "backoffSeconds": [2, 6, 15]
+  },
+  "historyRetentionDays": 30,
+  "lockDir": "/tmp/push-orchestrator/locks",
+  "staleTaskFactor": 2,
+  "contentArchiveDir": "./state/content_archive",
+  "runHistoryExportDir": "./state/run_history_export"
+}

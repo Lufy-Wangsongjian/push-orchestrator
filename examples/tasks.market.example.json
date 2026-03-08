@@ -1,0 +1,17 @@
+{
+  "tasks": [
+    {
+      "id": "market-brief-daily",
+      "name": "Daily market brief",
+      "description": "Market price + news summary",
+      "enabled": false,
+      "type": "market",
+      "provider": "market-brief",
+      "severity": "medium",
+      "cron": "0 18 * * 1-5",
+      "channel": "telegram",
+      "target": "",
+      "dedupe": { "mode": "window", "window_minutes": 60 }
+    }
+  ]
+}

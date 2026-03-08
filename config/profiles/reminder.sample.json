@@ -1,0 +1,5 @@
+{
+  "profile": "reminder",
+  "description": "纯提醒类任务示例",
+  "tasksFile": "../examples/tasks.reminder.example.json"
+}

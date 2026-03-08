@@ -1,0 +1,8 @@
+{
+  "profile": "personal",
+  "description": "个人日常提醒与内容示例",
+  "tasksFile": "../examples/tasks.personal.example.json",
+  "overrides": {
+    "defaultTarget": ""
+  }
+}
