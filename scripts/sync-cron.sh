@@ -20,11 +20,18 @@ if [[ -z "$TASKS_FILE" ]]; then
   exit 1
 fi
 
-TASKS_PATH="$SKILL_ROOT/$TASKS_FILE"
+# Resolve tasks path: absolute as-is, else under SKILL_ROOT
+if [[ "$TASKS_FILE" == /* ]]; then
+  TASKS_PATH="$TASKS_FILE"
+else
+  TASKS_PATH="$SKILL_ROOT/$TASKS_FILE"
+fi
 if [[ ! -f "$TASKS_PATH" ]]; then
   echo "Tasks file not found: $TASKS_PATH" >&2
   exit 1
 fi
+# For cron lines use absolute path so run-task works regardless of cwd
+TASKS_PATH_ABS="$(cd "$(dirname "$TASKS_PATH")" 2>/dev/null && pwd)/$(basename "$TASKS_PATH")"
 
 export TZ=$(jq -r '.timezone // "Asia/Shanghai"' "$CONFIG")
 MARKER_BEGIN="# push-orchestrator begin"
@@ -42,7 +49,7 @@ while read -r id cron; do
   if [[ -z "$cron" ]] || [[ "$cron" == "null" ]]; then
     continue
   fi
-  new_block="${new_block}${cron} $RUN_SCRIPT --tasks $TASKS_FILE --task $id
+  new_block="${new_block}${cron} $RUN_SCRIPT --tasks $TASKS_PATH_ABS --task $id
 "
 done < <(jq -r '.tasks[] | select(.cron != null) | "\(.id) \(.cron)"' "$TASKS_PATH")
 

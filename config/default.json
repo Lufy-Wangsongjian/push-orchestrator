@@ -10,6 +10,7 @@
     "backoffSeconds": [2, 6, 15]
   },
   "historyRetentionDays": 30,
+  "dedupeRetentionDays": 90,
   "lockDir": "/tmp/push-orchestrator/locks",
   "staleTaskFactor": 2,
   "contentArchiveDir": "./state/content_archive",

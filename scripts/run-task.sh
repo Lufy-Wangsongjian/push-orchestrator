@@ -27,7 +27,12 @@ if [[ -z "$TASKS_FILE" ]] || [[ -z "$TASK_ID" ]]; then
 fi
 
 export PUSH_SKILL_ROOT="$SKILL_ROOT"
-export PUSH_TASKS_FILE="$SKILL_ROOT/$TASKS_FILE"
+# Tasks file: absolute path as-is, relative path under SKILL_ROOT
+if [[ "$TASKS_FILE" == /* ]]; then
+  export PUSH_TASKS_FILE="$TASKS_FILE"
+else
+  export PUSH_TASKS_FILE="$SKILL_ROOT/$TASKS_FILE"
+fi
 export PUSH_CONFIG="$CONFIG"
 export PUSH_DB_PATH
 export PUSH_LOCK_DIR
@@ -119,25 +124,26 @@ trap 'lock_release' EXIT
 run_id="run-$(date '+%Y%m%d%H%M%S')-$$"
 started_at=$(date -u '+%Y-%m-%d %H:%M:%S')
 start_epoch=$(now_epoch)
+export PUSH_RUN_ID="$run_id"
+export PUSH_TASK_ID="$TASK_ID"
 
-# Dedupe (unless force or backfill)
+# Run provider once; payload reused for dedupe check, validate, send
+provider_script="$SCRIPT_DIR/providers/${task_provider}.sh"
+if [[ ! -f "$provider_script" ]]; then
+  log_error "Provider not found: $task_provider"
+  record_failure_and_exit 11 "PROVIDER_NOT_FOUND"
+fi
+payload=$(echo "$task_json" | bash "$provider_script" 2>/dev/null) || true
+if echo "$payload" | jq -e '.error' >/dev/null 2>&1; then
+  log_error "Provider failed: $(echo "$payload" | jq -r '.error')"
+  record_failure_and_exit 11 "PROVIDER_FAILED"
+fi
+payload_hash=$(echo -n "$(echo "$payload" | jq -c .)" | sha256sum | cut -d' ' -f1)
+topic_key=$(echo "$payload" | jq -r '.topic_key // empty')
+
+# Dedupe check (unless force or backfill); exit if hit
 dedupe_mode=$(task_dedupe_mode "$task_json")
-payload_hash=""
-topic_key=""
 if [[ "$FORCE" != "1" ]] && [[ "$MODE" != "backfill" ]] && [[ "$dedupe_mode" != "none" ]]; then
-  # Run provider to get payload for hash/topic
-  provider_script="$SCRIPT_DIR/providers/${task_provider}.sh"
-  if [[ ! -f "$provider_script" ]]; then
-    log_error "Provider not found: $task_provider"
-    exit 11
-  fi
-  payload=$(echo "$task_json" | bash "$provider_script" 2>/dev/null) || true
-  if echo "$payload" | jq -e '.error' >/dev/null 2>&1; then
-    log_error "Provider failed: $(echo "$payload" | jq -r '.error')"
-    exit 11
-  fi
-  payload_hash=$(echo -n "$(echo "$payload" | jq -c .)" | sha256sum | cut -d' ' -f1)
-  topic_key=$(echo "$payload" | jq -r '.topic_key // empty')
   if [[ "$dedupe_mode" == "hash" ]] || [[ "$dedupe_mode" == "hash_topic" ]]; then
     if db_dedupe_hash_hit "$TASK_ID" "$payload_hash"; then
       log_info "Dedupe hash hit: $TASK_ID"
@@ -146,7 +152,6 @@ if [[ "$FORCE" != "1" ]] && [[ "$MODE" != "backfill" ]] && [[ "$dedupe_mode" != 
     fi
   fi
   if [[ -n "$topic_key" ]] && { [[ "$dedupe_mode" == "topic_cooldown" ]] || [[ "$dedupe_mode" == "hash_topic" ]]; }; then
-    cooldown_days=$(task_dedupe_cooldown_days "$task_json")
     until_epoch=$(db_dedupe_topic_cooldown_until "$TASK_ID" "$topic_key")
     if [[ -n "$until_epoch" ]] && [[ "$(date '+%s')" -lt "$until_epoch" ]]; then
       log_info "Dedupe topic cooldown hit: $TASK_ID"
@@ -154,17 +159,6 @@ if [[ "$FORCE" != "1" ]] && [[ "$MODE" != "backfill" ]] && [[ "$dedupe_mode" != 
       exit 3
     fi
   fi
-  # Re-use payload below
-else
-  # Run provider to get payload
-  provider_script="$SCRIPT_DIR/providers/${task_provider}.sh"
-  payload=$(echo "$task_json" | bash "$provider_script" 2>/dev/null) || true
-  if echo "$payload" | jq -e '.error' >/dev/null 2>&1; then
-    log_error "Provider failed: $(echo "$payload" | jq -r '.error')"
-    record_failure_and_exit 11 "PROVIDER_FAILED"
-  fi
-  payload_hash=$(echo -n "$(echo "$payload" | jq -c .)" | sha256sum | cut -d' ' -f1)
-  topic_key=$(echo "$payload" | jq -r '.topic_key // empty')
 fi
 
 # Validate payload
@@ -219,16 +213,16 @@ if [[ "$MODE" != "backfill" ]] && [[ "$DRY_RUN" != "1" ]]; then
   db_insert_dedupe "$TASK_ID" "$task_type" "$task_content_kind" "$payload_hash" "$topic_key" "$title" "$source_summary" "$finished_at" "$cooldown_until" "$dedupe_mode"
 fi
 
-# Content archive
+# Content archive (content_path stored relative to contentArchiveDir for portability)
 archive_enabled=$(echo "$task_json" | jq -r '.archive_enabled // false')
 if [[ "$archive_enabled" == "true" ]] && [[ "$DRY_RUN" != "1" ]]; then
   archive_id="arch-$(date '+%Y%m%d%H%M%S')-$$"
   arch_cat=$(echo "$task_json" | jq -r '.archive_category // .content_kind // "misc"')
-  subdir="${PUSH_CONTENT_ARCHIVE_DIR}/${arch_cat}"
-  mkdir -p "$subdir"
-  content_path="${subdir}/${archive_id}.md"
-  echo "$payload" | jq -r '.content // ""' > "$content_path"
-  db_insert_content_archive "$archive_id" "$TASK_ID" "${task_content_kind:-task}" "$arch_cat" "$topic_key" "$(echo "$payload" | jq -r '.title // ""')" "$content_path" "$source_summary" "$finished_at" "$finished_at"
+  content_path_relative="${arch_cat}/${archive_id}.md"
+  content_path_abs="${PUSH_CONTENT_ARCHIVE_DIR}/${content_path_relative}"
+  mkdir -p "$(dirname "$content_path_abs")"
+  echo "$payload" | jq -r '.content // ""' > "$content_path_abs"
+  db_insert_content_archive "$archive_id" "$TASK_ID" "${task_content_kind:-task}" "$arch_cat" "$topic_key" "$(echo "$payload" | jq -r '.title // ""')" "$content_path_relative" "$source_summary" "$finished_at" "$finished_at"
 fi
 
 # Replay record if replay mode

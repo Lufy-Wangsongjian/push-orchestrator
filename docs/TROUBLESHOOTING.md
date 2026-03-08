@@ -1,5 +1,25 @@
 # Push Orchestrator 故障排查
 
+## 退出码与错误码对照
+
+脚本退出码与标准错误码一致，便于监控与脚本判断：
+
+| 退出码 | 错误码名 | 含义 |
+|--------|----------|------|
+| 0 | SUCCESS | 成功 |
+| 1 | CONFIG_INVALID | 配置错误 |
+| 2 | LOCK_ACQUIRE_FAILED | 锁获取失败 |
+| 3 | DEDUPE_HIT | 去重命中 |
+| 4 | DATA_UNAVAILABLE | 数据不可用 |
+| 5 | STALE_DATA | 数据过期 |
+| 6 | SOURCE_UNTRUSTED | 来源不可信 |
+| 7 | SEND_TIMEOUT | 发送超时 |
+| 8 | SEND_REJECTED | 无 message_id/被拒绝 |
+| 9 | DB_WRITE_FAILED | DB 写入失败 |
+| 10 | PAYLOAD_INVALID | payload 非法 |
+| 11 | PROVIDER_FAILED | provider/handler 失败 |
+| 12 | INTERNAL_ERROR | 内部错误 |
+
 ## 常见错误码
 
 | 码 | 名称 | 处理建议 |
@@ -52,5 +72,6 @@ sqlite3 "$PUSH_DB_PATH" "SELECT date_bucket, task_id, error_code, count FROM fai
 ## 归档问题
 
 - 归档目录：config 中 `contentArchiveDir`，默认 `./state/content_archive`。
+- **content_path 存相对路径**（相对 contentArchiveDir），迁移 skill 目录时只需保证 contentArchiveDir 与 content_path 相对关系不变即可。
 - 若写入失败，检查目录存在且可写；`archive_enabled` 为 true 时才会写入。
 - 索引在 `content_archive` 表，可按 task_id、content_kind、archive_category 查询。

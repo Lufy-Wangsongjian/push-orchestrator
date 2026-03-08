@@ -162,4 +162,4 @@
 | 设计缺陷   | 8    | 高：failure_stats/runtime_state 写入失败路径；中：send 退避、dedupe 清理、cooldown 类型、market 占位 |
 | 优化空间   | 8    | 中：路径解析、历史清理、归档可移植性；低：日志结构化、replay target_date 语义、schema 校验 |
 
-优先建议实现：**失败时写 failure_stats 与 runtime_state**、**send 退避按配置**、**dedupe_records 清理策略与文档**。其余可按迭代逐步补全。
+**本轮优化已全部完成：** 路径解析（绝对/相对、sync-cron 写绝对路径）、run-task 单次 provider 调用、cleanup.sh（dedupe + runs 清理）、cooldown_until 文档约定为 epoch 秒、受信输入与 market 占位说明、归档 content_path 存相对路径、replay 语义与退出码表、PUSH_LOG_FORMAT=json、validate-config schema 说明。详见 OPERATIONS / TROUBLESHOOTING / DATA_MODEL / RELEASE / SKILL。

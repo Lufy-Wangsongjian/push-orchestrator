@@ -67,10 +67,20 @@ PUSH_TASKS_FILE=./examples/tasks.content.example.json ./scripts/validate-config.
 # Replay
 ./scripts/replay.sh --tasks examples/tasks.content.example.json --task content-book --mode rerun --dry-run
 
+# 历史与去重清理（可选，建议定期 cron）
+./scripts/cleanup.sh --runs
+./scripts/cleanup.sh --dedupe-days 90 --dry-run
+
 # 健康检查
 ./scripts/healthcheck.sh
 ./scripts/healthcheck.sh --json
 ```
+
+**路径**：`--tasks` 可为相对路径（相对 skill 根）或绝对路径；sync-cron 写入 cron 时会使用 tasks 的绝对路径。
+
+## 错误码与退出码
+
+脚本退出码与下表错误码一致（0=成功，非 0 即对应错误码，便于监控与脚本判断）。
 
 ## 错误码
 
@@ -89,6 +99,8 @@ PUSH_TASKS_FILE=./examples/tasks.content.example.json ./scripts/validate-config.
 | 10 | PAYLOAD_INVALID | payload 非法 |
 | 11 | PROVIDER_FAILED | provider/handler 执行失败 |
 | 12 | INTERNAL_ERROR | 内部错误 |
+
+可选：设置 `PUSH_LOG_FORMAT=json` 时，日志输出单行 JSON（含 run_id、task_id、stage 等），便于集中采集。
 
 ## 更多文档
 

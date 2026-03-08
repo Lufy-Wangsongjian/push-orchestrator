@@ -8,7 +8,7 @@
 ## 已知限制
 
 - **单实例**：按单机单实例设计，不支持多实例共享同一 SQLite。
-- **market 真值**：`market-price.sh` / `market-news.sh` 为占位实现，需接入真实数据源方可作为唯一真值/摘要来源。
+- **market 真值**：`market-price.sh` / `market-news.sh` 为**占位实现**，生产前必须接入真实数据源并做真值/摘要分离与校验；不得以 Tavily 等作为唯一真值，无真值须返回“数据不可用”。
 - **send 接口**：发送层假定 sendCommand 接受 channel、target，且 stdout 可解析出 message_id；若 OpenClaw 接口不同，需在 send.sh 或外层适配。
 - **cron 同步**：sync-cron.sh 依赖 crontab 与 `# push-orchestrator begin/end` 块；若使用其他调度器需自行维护调用 run-task.sh。
 

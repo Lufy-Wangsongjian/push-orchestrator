@@ -62,7 +62,7 @@
 | title | TEXT | 标题 |
 | source | TEXT | 来源摘要 |
 | sent_at | TEXT | 发送时间 |
-| cooldown_until | TEXT | 冷却截止（epoch 或时间） |
+| cooldown_until | TEXT | 冷却截止：**约定为 Unix epoch 秒**（整数字符串），用于 topic 冷却比较 |
 | mode | TEXT | 去重模式 |
 
 ### runtime_state
@@ -93,7 +93,7 @@
 | archive_category | TEXT | 归档分类 |
 | topic | TEXT | 主题 |
 | title | TEXT | 标题 |
-| content_path | TEXT | 本地文件路径 |
+| content_path | TEXT | **相对路径**（相对 config 中 contentArchiveDir），便于迁移；解析时拼 `contentArchiveDir/content_path` |
 | source_summary | TEXT | 来源摘要 |
 | created_at | TEXT | 创建时间 |
 | sent_at | TEXT | 发送时间 |
@@ -139,6 +139,10 @@
 - **runs.content_kind**：当次运行的内容类型（来自 task 或 provider 输出）。
 - **dedupe_records.content_kind**：去重记录所属内容类型。
 - **content_archive.content_kind**：归档内容类型，用于按类型分目录与查询。
+
+## 归档路径解析
+
+`content_archive.content_path` 存的是**相对 config 中 contentArchiveDir 的路径**（如 `book/arch-xxx.md`）。读取或导出时需拼成绝对路径：`<skill_root>/<contentArchiveDir>/<content_path>`。
 
 ## 典型查询示例
 
