@@ -1,0 +1,56 @@
+{
+  "tasks": [
+    {
+      "id": "content-book",
+      "name": "Book recommendation",
+      "enabled": false,
+      "type": "content",
+      "provider": "content",
+      "content_kind": "book",
+      "content_source_type": "script",
+      "dedupe_strategy": "hash_topic",
+      "render_strategy": "markdown",
+      "cron": "0 10 * * 1",
+      "channel": "telegram",
+      "target": "",
+      "archive_enabled": true,
+      "archive_category": "book",
+      "dedupe": { "mode": "hash_topic", "cooldown_days": 7 },
+      "source_config": { "title": "Book pick", "body": "A book recommendation." }
+    },
+    {
+      "id": "content-coffee",
+      "name": "Coffee tip",
+      "enabled": false,
+      "type": "content",
+      "provider": "content",
+      "content_kind": "coffee",
+      "content_source_type": "script",
+      "dedupe_strategy": "topic_cooldown",
+      "render_strategy": "markdown",
+      "cron": "0 9 * * *",
+      "channel": "telegram",
+      "target": "",
+      "dedupe": { "mode": "topic_cooldown", "cooldown_days": 1 },
+      "source_config": { "title": "Coffee of the day", "body": "A coffee tip." }
+    },
+    {
+      "id": "content-ai-news",
+      "name": "AI news digest",
+      "enabled": false,
+      "type": "content",
+      "provider": "content",
+      "content_kind": "ai_news",
+      "content_source_type": "script",
+      "dedupe_strategy": "hash_topic",
+      "render_strategy": "digest",
+      "cron": "0 12 * * *",
+      "channel": "telegram",
+      "target": "",
+      "archive_enabled": true,
+      "archive_category": "ai_news",
+      "dedupe": { "mode": "hash_topic", "cooldown_days": 1 },
+      "source_config": { "title": "AI news", "body": "AI news summary." }
+    }
+  ]
+}

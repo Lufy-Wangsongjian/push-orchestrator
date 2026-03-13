@@ -4,6 +4,17 @@ set -e
 SKILL_ROOT="${PUSH_SKILL_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG="${SKILL_ROOT}/config/default.json"
+# 约定：skill 安装在 <workspace>/skills/<skill-name>，workspace = SKILL_ROOT/../.. ；兼容 .agents/skills 安装时 workspace = SKILL_ROOT/../../..
+_push_parent="$(dirname "$SKILL_ROOT")"
+_push_name="$(basename "$_push_parent")"
+if [[ "$_push_name" == "skills" ]]; then
+  [[ "$(basename "$(dirname "$_push_parent")")" == ".agents" ]] && export PUSH_WORKSPACE="${OPENCLAW_WORKSPACE:-$(cd "$SKILL_ROOT/../../.." && pwd)}" || export PUSH_WORKSPACE="${OPENCLAW_WORKSPACE:-$(cd "$SKILL_ROOT/../.." && pwd)}"
+elif [[ "$_push_name" == ".agents" ]]; then
+  export PUSH_WORKSPACE="${OPENCLAW_WORKSPACE:-$(cd "$SKILL_ROOT/../.." && pwd)}"
+else
+  export PUSH_WORKSPACE="${OPENCLAW_WORKSPACE:-$(cd "$SKILL_ROOT/.." && pwd)}"
+fi
+unset _push_parent _push_name
 TASKS_FILE=""
 TASK_ID=""
 MODE="normal"
@@ -55,6 +66,10 @@ else
   PUSH_LOCK_DIR="$SKILL_ROOT/$PUSH_LOCK_DIR"
 fi
 PUSH_SEND_COMMAND=$(jq -r '.sendCommand // "openclaw message send"' "$CONFIG")
+# sendCommand 若为相对路径，则相对于 skill 根目录（便于安装到任意 workspace）
+if [[ -n "$PUSH_SEND_COMMAND" ]] && [[ "$PUSH_SEND_COMMAND" != /* ]]; then
+  PUSH_SEND_COMMAND="$SKILL_ROOT/$PUSH_SEND_COMMAND"
+fi
 PUSH_TZ=$(jq -r '.timezone // "Asia/Shanghai"' "$CONFIG")
 PUSH_CONTENT_ARCHIVE_DIR="$SKILL_ROOT/$(jq -r '.contentArchiveDir // "./state/content_archive"' "$CONFIG")"
 PUSH_TEMPLATE_ROOT="$SKILL_ROOT/templates"
@@ -95,6 +110,18 @@ target=$(get_task_field "$task_json" "target")
 PUSH_CHANNEL="${channel:-$(jq -r '.defaultChannel // "telegram"' "$CONFIG")}"
 PUSH_TARGET="${target:-$(jq -r '.defaultTarget // ""' "$CONFIG")}"
 
+# Helper: notify failure to default target (best effort)
+notify_failure() {
+  local code="$1"
+  local msg="$2"
+  local run_id_val="${3:-$run_id}"
+  local bin="${OPENCLAW_BIN:-$(command -v openclaw 2>/dev/null || true)}"
+  [[ -z "$bin" && -x "$HOME/.local/share/pnpm/openclaw" ]] && bin="$HOME/.local/share/pnpm/openclaw"
+  [[ -z "$bin" ]] && return 0
+  local fail_text="⚠️ 推送失败告警\n任务: ${TASK_ID}\n错误码: ${code}\n原因: ${msg}\nRun: ${run_id_val:-n/a}\n时间: $(date '+%F %T %Z')"
+  "$bin" message send --channel "${PUSH_CHANNEL:-telegram}" --target "${PUSH_TARGET:-}" --message "$fail_text" >/dev/null 2>&1 || true
+}
+
 # Helper: record failure and exit (run_id, started_at must be set if we already have them)
 record_failure_and_exit() {
   local code="$1"
@@ -108,6 +135,7 @@ record_failure_and_exit() {
   fi
   db_upsert_runtime_state "$TASK_ID" "$task_type" "$task_content_kind" "failed" "${started_at_val:-$(date -u '+%Y-%m-%d %H:%M:%S')}" "" "$code" "$msg" 0
   db_upsert_failure_stat "$date_bucket" "$TASK_ID" "$task_content_kind" "$code" 1
+  notify_failure "$code" "$msg" "$run_id_val"
   exit "$code"
 }
 
@@ -172,16 +200,28 @@ if [[ "$DRY_RUN" == "1" ]]; then
   log_info "Dry-run: would send"
   message_id="dry-run"
 else
-  send_out=$(echo "$payload" | "$SCRIPT_DIR/send.sh" 2>/dev/null) || true
-  message_id=$(echo "$send_out" | jq -r '.message_id // empty')
+  send_out=$(echo "$payload" | "$SCRIPT_DIR/send.sh" 2>&1) || true
+  message_id=$(echo "$send_out" | jq -r '.message_id // empty' 2>/dev/null || true)
+
+  # Reminder extra safeguard: delayed one-shot retry if first send failed
+  if [[ -z "$message_id" ]] && [[ "$task_type" == "reminder" ]]; then
+    log_warn "Reminder send failed first attempt, retrying in 120s..."
+    sleep 120
+    send_out_retry=$(echo "$payload" | "$SCRIPT_DIR/send.sh" 2>&1) || true
+    message_id=$(echo "$send_out_retry" | jq -r '.message_id // empty' 2>/dev/null || true)
+    send_out="$send_out\n--- retry ---\n$send_out_retry"
+  fi
+
   if [[ -z "$message_id" ]]; then
     end_epoch=$(now_epoch)
     finished_at=$(date -u '+%Y-%m-%d %H:%M:%S')
     duration_ms=$(( (end_epoch - start_epoch) * 1000 ))
-    db_insert_run "$run_id" "$TASK_ID" "$task_type" "$task_content_kind" "cron" "$MODE" "failed" 8 "SEND_REJECTED" "$started_at" "$finished_at" "$duration_ms" "" "$payload_hash" "" "$(echo "$payload" | jq -r '.source_summary // ""')"
-    db_upsert_runtime_state "$TASK_ID" "$task_type" "$task_content_kind" "failed" "$finished_at" "" 8 "SEND_REJECTED" "$duration_ms"
+    raw_err=$(echo "$send_out" | tail -n 30 | tr '\n' ' ' | sed "s/'/''/g")
+    db_insert_run "$run_id" "$TASK_ID" "$task_type" "$task_content_kind" "cron" "$MODE" "failed" 8 "SEND_REJECTED: ${raw_err}" "$started_at" "$finished_at" "$duration_ms" "" "$payload_hash" "" "$(echo "$payload" | jq -r '.source_summary // ""')"
+    db_upsert_runtime_state "$TASK_ID" "$task_type" "$task_content_kind" "failed" "$finished_at" "" 8 "SEND_REJECTED: ${raw_err}" "$duration_ms"
     db_upsert_failure_stat "$(date '+%Y-%m-%d')" "$TASK_ID" "$task_content_kind" 8 1
-    log_error "Send failed: no message_id"
+    notify_failure 8 "SEND_REJECTED: ${raw_err}" "$run_id"
+    log_error "Send failed: no message_id | raw: $raw_err"
     exit 8
   fi
 fi

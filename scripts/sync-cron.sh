@@ -61,7 +61,7 @@ if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
 fi
 
-# Get current crontab, remove old block, append new
+# Get current crontab, remove old block, normalize CRON_TZ, append new
 tmp=$(mktemp)
 crontab -l 2>/dev/null > "$tmp" || true
 # Remove existing block (macOS and GNU compatible)
@@ -71,6 +71,17 @@ awk -v b="$MARKER_BEGIN" -v e="$MARKER_END" '
   $0 ~ e { f=0 }
 ' "$tmp" > "${tmp}.noblock"
 mv "${tmp}.noblock" "$tmp"
+
+# Remove existing CRON_TZ lines, then add configured timezone at top
+awk '!/^CRON_TZ=/' "$tmp" > "${tmp}.notz"
+{
+  echo "CRON_TZ=$(jq -r '.timezone // "Asia/Shanghai"' "$CONFIG")"
+  echo
+  cat "${tmp}.notz"
+} > "${tmp}.withtz"
+mv "${tmp}.withtz" "$tmp"
+rm -f "${tmp}.notz"
+
 # Append new block
 echo "$MARKER_BEGIN" >> "$tmp"
 echo -n "$new_block" >> "$tmp"

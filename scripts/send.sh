@@ -25,7 +25,11 @@ attempt=1
 out=""
 while [[ $attempt -le $max_attempts ]]; do
   out=$(send_one) || true
-  message_id=$(echo "$out" | jq -r '.message_id // empty')
+  message_id=$(echo "$out" | jq -r '.message_id // empty' 2>/dev/null || true)
+  if [[ -z "$message_id" ]]; then
+    # Fallback for human-readable CLI output, e.g. "✅ Sent via Telegram. Message ID: 1430"
+    message_id=$(echo "$out" | sed -nE 's/.*Message ID:[[:space:]]*([0-9]+).*/\1/p' | tail -n1)
+  fi
   if [[ -n "$message_id" ]]; then
     echo "{\"message_id\":\"$message_id\"}"
     exit 0

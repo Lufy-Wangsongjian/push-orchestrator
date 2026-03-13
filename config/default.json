@@ -1,10 +1,10 @@
 {
-  "timezone": "Asia/Shanghai",
+  "timezone": "America/Los_Angeles",
   "workspaceRoot": ".",
   "stateDbPath": "./state/push.db",
-  "sendCommand": "openclaw message send",
+  "sendCommand": "scripts/openclaw-send-wrapper.sh",
   "defaultChannel": "telegram",
-  "defaultTarget": "",
+  "defaultTarget": "8731029768",
   "retryPolicy": {
     "maxAttempts": 3,
     "backoffSeconds": [2, 6, 15]
